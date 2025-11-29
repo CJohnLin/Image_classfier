@@ -1,40 +1,47 @@
 import streamlit as st
+import os
 import torch
-from model.model_def import create_model
 from model.predict import predict_single
+from gdrive_downloader import download_file_from_google_drive
 
-st.set_page_config(page_title="Image Classifier + GradCAM", layout="wide")
+# Google Drive model URL
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1fe85t5UJhNYCCQBgpGSKCXnW4BcQvVkj"
+MODEL_PATH = "model/best_model.pt"
 
-st.title("🌸 Flower Image Classifier with Grad-CAM")
-
-uploaded = st.file_uploader("Upload an image (jpg/png)", type=["jpg", "png"])
-use_cam = st.checkbox("Enable Grad-CAM visualization", True)
+# Auto download model
+if not os.path.exists(MODEL_PATH):
+    st.warning("Model not found. Downloading from Google Drive...")
+    download_file_from_google_drive(MODEL_URL, MODEL_PATH)
+    st.success("Model downloaded successfully.")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# ----- Load model checkpoint -----
-ckpt = torch.load("model/best_model.pt", map_location=device)
+# Streamlit UI
+st.title("Flower Classifier with Grad-CAM")
+st.write("Upload an image to run prediction.")
 
-classes = ckpt["classes"]                # 類別名稱
-model = create_model(num_classes=len(classes))
-model.load_state_dict(ckpt["model"])     # 正確載入 state_dict
+uploaded_file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
 
-model.to(device)
-model.eval()
+use_cam = st.checkbox("Enable Grad-CAM visualization", value=True)
 
+if uploaded_file:
+    st.image(uploaded_file, caption="Uploaded image", use_column_width=True)
 
-if uploaded:
-    temp_path = "temp_uploaded.jpg"
-    with open(temp_path, "wb") as f:
-        f.write(uploaded.read())
+    if st.button("Run Prediction"):
+        temp_path = "temp.jpg"
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
 
-    st.image(uploaded, caption="Uploaded image", use_column_width=True)
+        pred, conf, cam_path = predict_single(
+            MODEL_PATH,
+            "data/class_names.txt",
+            temp_path,
+            device,
+            use_cam,
+            return_cam_path=True,
+        )
 
-    pred, conf, cam_path = predict_single(
-        model, classes, temp_path, device, use_cam
-    )
+        st.subheader(f"Prediction: {pred} ({conf * 100:.2f}%)")
 
-    st.subheader(f"Prediction: **{pred}** ({conf*100:.2f}%)")
-
-    if use_cam and cam_path:
-        st.image(cam_path, caption="Grad-CAM heatmap", use_column_width=True)
+        if use_cam and cam_path:
+            st.image(cam_path, caption="Grad-CAM Heatmap", use_column_width=True)
