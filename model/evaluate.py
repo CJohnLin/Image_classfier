@@ -9,17 +9,21 @@ from model_def import create_model
 def load_model(model_path, device):
     ckpt = torch.load(model_path, map_location=device)
 
-    # 如果檔案格式是 state_dict → dict 格式
+    # 如果模型格式是 { "model": state_dict, "classes": [...] }
     if isinstance(ckpt, dict) and "model" in ckpt:
         state_dict = ckpt["model"]
-        class_names = ckpt.get("classes", None)
+        class_names = ckpt["classes"]
     else:
-        raise ValueError("模型檔案格式不符，無法讀取。")
+        raise ValueError("模型格式錯誤，沒有 'model' 與 'classes' 這兩個 key")
 
-    model = create_model(num_classes=len(class_names)).to(device)
-    model.load_state_dict(state_dict)
+    # 建立相同架構
+    model = create_model(num_classes=len(class_names))
+    model = model.to(device)
+
+    # 載入 state_dict（允許部分轉換）
+    model.load_state_dict(state_dict, strict=True)
+
     model.eval()
-
     return model, class_names
 
 def get_dataloader(data_dir):
@@ -27,13 +31,12 @@ def get_dataloader(data_dir):
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
     ])
-    ds = datasets.ImageFolder(f"{data_dir}/test", transform=transform)
-    loader = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=False)
+    dataset = datasets.ImageFolder(f"{data_dir}/test", transform=transform)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False)
     return loader
 
-def evaluate(model, loader, device, class_names):
-    preds = []
-    labels_all = []
+def evaluate(model, loader, device, classes):
+    preds, labels_all = [], []
 
     with torch.no_grad():
         for imgs, labels in loader:
@@ -48,7 +51,7 @@ def evaluate(model, loader, device, class_names):
 
     acc = np.mean(np.array(preds) == np.array(labels_all))
     cm = confusion_matrix(labels_all, preds)
-    report = classification_report(labels_all, preds, target_names=class_names)
+    report = classification_report(labels_all, preds, target_names=classes)
 
     return acc, cm, report
 
@@ -61,13 +64,13 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device:", device)
 
-    model, class_names = load_model(args.model_path, device)
+    model, classes = load_model(args.model_path, device)
     loader = get_dataloader(args.data_dir)
 
-    acc, cm, report = evaluate(model, loader, device, class_names)
+    acc, cm, report = evaluate(model, loader, device, classes)
 
     print("\n===== Evaluation Results =====")
-    print("Accuracy: {:.2f}%".format(acc * 100))
+    print(f"Accuracy: {acc*100:.2f}%")
     print("\nConfusion Matrix:\n", cm)
     print("\nClassification Report:\n", report)
 
