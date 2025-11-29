@@ -1,47 +1,54 @@
 import torch
 import torch.nn as nn
-from torchvision import datasets, transforms
+from torchvision import transforms, datasets
 from sklearn.metrics import confusion_matrix, classification_report
 import argparse
 import numpy as np
 from model_def import create_model
 
-def load_model(model_path, device, num_classes=102):
-    model = create_model(num_classes).to(device)
+def load_model(model_path, device):
+    ckpt = torch.load(model_path, map_location=device)
 
-    state_dict = torch.load(model_path, map_location=device)
+    # 如果檔案格式是 state_dict → dict 格式
+    if isinstance(ckpt, dict) and "model" in ckpt:
+        state_dict = ckpt["model"]
+        class_names = ckpt.get("classes", None)
+    else:
+        raise ValueError("模型檔案格式不符，無法讀取。")
+
+    model = create_model(num_classes=len(class_names)).to(device)
     model.load_state_dict(state_dict)
-
     model.eval()
-    return model
+
+    return model, class_names
 
 def get_dataloader(data_dir):
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
     ])
-    test_dataset = datasets.ImageFolder(f"{data_dir}/test", transform=transform)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=32, shuffle=False)
-    return test_loader, test_dataset.classes
+    ds = datasets.ImageFolder(f"{data_dir}/test", transform=transform)
+    loader = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=False)
+    return loader
 
-def evaluate(model, dataloader, device, class_names):
-    all_preds = []
-    all_labels = []
+def evaluate(model, loader, device, class_names):
+    preds = []
+    labels_all = []
 
     with torch.no_grad():
-        for imgs, labels in dataloader:
+        for imgs, labels in loader:
             imgs = imgs.to(device)
             labels = labels.to(device)
 
             outputs = model(imgs)
-            _, preds = torch.max(outputs, 1)
+            _, pred = torch.max(outputs, 1)
 
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+            preds.extend(pred.cpu().numpy())
+            labels_all.extend(labels.cpu().numpy())
 
-    acc = np.mean(np.array(all_preds) == np.array(all_labels))
-    cm = confusion_matrix(all_labels, all_preds)
-    report = classification_report(all_labels, all_preds, target_names=class_names)
+    acc = np.mean(np.array(preds) == np.array(labels_all))
+    cm = confusion_matrix(labels_all, preds)
+    report = classification_report(labels_all, preds, target_names=class_names)
 
     return acc, cm, report
 
@@ -52,15 +59,15 @@ def main():
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
+    print("Using device:", device)
 
-    model = load_model(args.model_path, device)
-    dataloader, classes = get_dataloader(args.data_dir)
+    model, class_names = load_model(args.model_path, device)
+    loader = get_dataloader(args.data_dir)
 
-    acc, cm, report = evaluate(model, dataloader, device, classes)
+    acc, cm, report = evaluate(model, loader, device, class_names)
 
-    print("\n=== Evaluation Results ===")
-    print(f"Accuracy: {acc*100:.2f}%")
+    print("\n===== Evaluation Results =====")
+    print("Accuracy: {:.2f}%".format(acc * 100))
     print("\nConfusion Matrix:\n", cm)
     print("\nClassification Report:\n", report)
 
