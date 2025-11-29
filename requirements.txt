@@ -1,6 +1,8 @@
-streamlit>=1.18
-torch>=1.11
-torchvision>=0.12
-numpy
-Pillow
-opencv-python-headless
+torch==2.2.0
+torchvision==0.17.0
+numpy==1.26.4
+Pillow==10.2.0
+opencv-python-headless==4.9.0.80
+matplotlib==3.8.2
+scikit-learn==1.4.0
+streamlit==1.32.0
