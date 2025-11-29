@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/23835190/README.md)
 # 🌸 Flower Image Classifier with Grad-CAM
 A deep-learning application based on **ResNet-50**, trained on the **Oxford 102 Flowers** dataset.  
 This project supports **local execution**, **cloud deployment**, and **Grad-CAM visualization** for model interpretability.
