@@ -17,8 +17,8 @@ if not os.path.exists(MODEL_PATH):
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Streamlit UI
-st.title("Flower Classifier with Grad-CAM")
-st.write("Upload an image to run prediction.")
+st.title("Deployment Skeleton")
+st.write("Replace this with your actual app code.")
 
 uploaded_file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
 
