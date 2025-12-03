@@ -7,6 +7,19 @@ import numpy as np
 from model.predict import predict_single, load_model
 from gdrive_downloader import download_file_from_google_drive
 
+from gdrive_downloader import download_file_from_google_drive
+import os
+
+MODEL_ID = "1fe85t5UJhNYCCQBgpGSKCXnW4BcQvVkj"
+MODEL_PATH = "model/best_model.pt"
+
+# 自動下載模型（如果不存在）
+if not os.path.exists(MODEL_PATH):
+    st.write("Downloading model from Google Drive...")
+    download_file_from_google_drive(MODEL_ID, MODEL_PATH)
+    st.write("Model downloaded successfully.")
+
+
 # ===========================
 #       PAGE TITLE
 # ===========================
