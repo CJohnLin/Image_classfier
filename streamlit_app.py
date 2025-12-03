@@ -1,47 +1,77 @@
 import streamlit as st
 import os
 import torch
-from model.predict import predict_single
+from PIL import Image
+import numpy as np
+
+from model.predict import predict_single, load_model
 from gdrive_downloader import download_file_from_google_drive
 
-# Google Drive model URL
-MODEL_URL = "https://drive.google.com/uc?export=download&id=1fe85t5UJhNYCCQBgpGSKCXnW4BcQvVkj"
+# ===========================
+#       PAGE TITLE
+# ===========================
+st.set_page_config(page_title="Flower Classifier", layout="wide")
+
+st.title("🌸 Flower Classification with Grad-CAM")
+st.write("Upload an image and let the model classify it with optional Grad-CAM visualization.")
+
+# ===========================
+#       CONSTANTS
+# ===========================
 MODEL_PATH = "model/best_model.pt"
+GOOGLE_DRIVE_FILE_ID = "1fe85t5UJhNYCCQBgpGSKCXnW4BcQvVkj"  # 你給我的模型 ID
+CLASSES = list(range(102))  # Oxford 102 Flowers dataset
 
-# Auto download model
-if not os.path.exists(MODEL_PATH):
-    st.warning("Model not found. Downloading from Google Drive...")
-    download_file_from_google_drive(MODEL_URL, MODEL_PATH)
-    st.success("Model downloaded successfully.")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# ===========================
+#  DOWNLOAD MODEL IF NEEDED
+# ===========================
+def ensure_model_exists():
+    if not os.path.exists(MODEL_PATH):
+        st.warning("模型不存在，正在從 Google Drive 下載...")
+        download_file_from_google_drive(GOOGLE_DRIVE_FILE_ID, MODEL_PATH)
+        st.success("模型下載完成！")
 
-# Streamlit UI
-st.title("Deployment Skeleton")
-st.write("Replace this with your actual app code.")
 
-uploaded_file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
+ensure_model_exists()
+
+
+# ===========================
+#       LOAD MODEL
+# ===========================
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+with st.spinner("Loading model..."):
+    model = load_model(MODEL_PATH, device)
+
+st.success(f"Model loaded on **{device}**")
+
+
+# ===========================
+#       IMAGE UPLOAD
+# ===========================
+uploaded_file = st.file_uploader(
+    "Upload an image", type=["jpg", "jpeg", "png"]
+)
 
 use_cam = st.checkbox("Enable Grad-CAM visualization", value=True)
 
 if uploaded_file:
-    st.image(uploaded_file, caption="Uploaded image", use_column_width=True)
+    img = Image.open(uploaded_file).convert("RGB")
+
+    st.image(img, caption="Uploaded image", use_container_width=True)
 
     if st.button("Run Prediction"):
-        temp_path = "temp.jpg"
-        with open(temp_path, "wb") as f:
-            f.write(uploaded_file.getvalue())
+        with st.spinner("Predicting..."):
+            pred, conf, cam_overlay = predict_single(
+                model,
+                CLASSES,
+                img,
+                device,
+                use_cam=use_cam
+            )
 
-        pred, conf, cam_path = predict_single(
-            MODEL_PATH,
-            "data/class_names.txt",
-            temp_path,
-            device,
-            use_cam,
-            return_cam_path=True,
-        )
+        st.subheader(f"Prediction: **{pred} ({conf*100:.2f}%)**")
 
-        st.subheader(f"Prediction: {pred} ({conf * 100:.2f}%)")
-
-        if use_cam and cam_path:
-            st.image(cam_path, caption="Grad-CAM Heatmap", use_column_width=True)
+        if use_cam and cam_overlay is not None:
+            st.image(cam_overlay, caption="Grad-CAM Result", use_container_width=True)
