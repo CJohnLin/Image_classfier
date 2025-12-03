@@ -1,6 +1,20 @@
-streamlit
-numpy
-Pillow
+# core app
+streamlit>=1.18
+
+# image handling
+Pillow>=9.0
 opencv-python-headless==4.7.0.72
-torch==2.5.1
-torchvision==0.20.1
+
+# lighter numpy version (不要強制最新可能不支持某些 Python)
+numpy>=1.24,<1.26
+
+# torch cpu wheels - use find-links (-f) to point to pytorch CPU wheel index
+# NOTE: the exact torch/torchvision versions below are examples that worked with cp310/cp311 historically.
+# adjust if you need different versions, but keep the -f line.
+-f https://download.pytorch.org/whl/cpu/torch_stable.html
+torch==2.0.1+cpu
+torchvision==0.15.2+cpu
+
+# optionally small deps used in your repo
+gdown>=4.6.0
+tqdm>=4.64
